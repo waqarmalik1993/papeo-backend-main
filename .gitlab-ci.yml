@@ -1,0 +1,65 @@
+image: node:latest
+
+stages:
+  - deploy
+
+staging:
+  only:
+    - dev
+  variables: 
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    FIREBASE_CONFIG: $STAGING_FIREBASE_CONFIG
+    STAGING_ENV: $STAGING_ENV
+  stage: deploy
+  before_script:
+    - npm config set prefix /usr/local
+    - npm install -g serverless
+    - cd src && npm install
+  script:
+    - echo "$STAGING_ENV" > .env.staging
+    - mkdir credentials
+    - echo "$FIREBASE_CONFIG" > credentials/papeo-firebase-adminsdk-staging.js
+    - serverless deploy --stage staging --verbose
+  environment: staging
+
+ticketing:
+  only:
+    - ticketing
+  variables: 
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    # ALARM
+    FIREBASE_CONFIG: $STAGING_FIREBASE_CONFIG
+    TICKETING_ENV: $TICKETING_ENV
+  stage: deploy
+  before_script:
+    - npm config set prefix /usr/local
+    - npm install -g serverless
+    - cd src && npm install
+  script:
+    - echo "$TICKETING_ENV" > .env.ticketing
+    - mkdir credentials
+    - echo "$FIREBASE_CONFIG" > credentials/papeo-firebase-adminsdk-ticketing.js
+    - serverless deploy --stage ticketing --verbose
+  environment: ticketing
+
+production:
+  only:
+    - main
+  variables: 
+    AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+    AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+    FIREBASE_CONFIG: $PRODUCTION_FIREBASE_CONFIG
+    PRODUCTION_ENV: $PRODUCTION_ENV
+  stage: deploy
+  before_script:
+    - npm config set prefix /usr/local
+    - npm install -g serverless
+    - cd src && npm install
+  script:
+    - echo "$PRODUCTION_ENV" > .env.production
+    - mkdir credentials
+    - echo "$FIREBASE_CONFIG" > credentials/papeo-firebase-adminsdk-production.js
+    - serverless deploy --stage production --verbose
+  environment: production

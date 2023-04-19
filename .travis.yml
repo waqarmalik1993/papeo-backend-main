@@ -1,0 +1,16 @@
+sudo: required
+language: generic
+
+services:
+- docker
+deploy:
+  # deploy develop to the staging environment
+  - provider: script
+    script: bash scripts/deploy-dev.sh
+    on:
+      branch: dev
+  # deploy master to production
+#  - provider: script
+#    script: bash scripts/deploy-master.sh
+#    on:
+#      branch: master

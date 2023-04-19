@@ -1,0 +1,176 @@
+config:
+  target: "https://n1bns0nxxj.execute-api.eu-central-1.amazonaws.com/dev"
+  phases:
+    - duration: 600
+      arrivalRate: 50
+      rampTo: 150
+      name: Test
+  payload:
+    # path is relative to the location of the test script
+    path: "data.csv"
+    fields:
+      - "phone"
+      - "username"
+      - "lat"
+      - "long"
+
+scenarios:
+  - name: "party"
+    flow:
+      # Auth
+      - post:
+          url: "/users/authenticate"
+          json:
+            type: "local"
+            countryCode: "de"
+            channel: "sms"
+            verificationCode: "999999"
+            phoneNumber: "+{{ phone }}"
+            platform: "ios"
+            fcmToken: "0000000000000000000"
+          capture:
+            - json: $.jwt
+              as: jwt
+            - json: $.userId
+              as: userId
+      - get:
+          url: "/users/{{ userId }}"
+          headers:
+            authorization: "{{ jwt }}"
+      # PATCH username, currentLocation
+      - patch:
+          url: "/users/{{ userId }}"
+          json:
+            currentLocation:
+              coordinates:
+                - "{{long}}"
+                - "{{lat}}"
+            username: "{{username}}"
+          headers:
+            authorization: "{{ jwt }}"
+      # Create a party
+      - post:
+          url: "/parties"
+          json:
+            name: Load Testing Party
+            description: "Load Testing Party Description"
+            tags:
+              - tag1
+              - tag2
+            status: published
+            type: private
+            privacyLevel: closed
+            location:
+              coordinates:
+                - "{{long}}"
+                - "{{lat}}"
+            entranceFeeText: Entrance fee
+            capacity: 100
+            informationForAccepptedGuests: "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+            startDate: '2022-07-05T20:48:00.000Z'
+            endDate: '2022-07-07T20:48:00.000Z'
+          capture:
+            - json: $._id
+              as: partyId
+          headers:
+            authorization: "{{ jwt }}"
+      - think: 1
+      - get:
+          url: "/parties/{{ partyId }}"
+          headers:
+            authorization: "{{ jwt }}"
+
+
+######################################################
+
+
+  - name: "feed"
+    flow:
+      # Auth
+      - post:
+          url: "/users/authenticate"
+          json:
+            type: "local"
+            countryCode: "de"
+            channel: "sms"
+            verificationCode: "999999"
+            phoneNumber: "+{{ phone }}"
+            platform: "ios"
+            fcmToken: "0000000000000000000"
+          capture:
+            - json: $.jwt
+              as: jwt
+            - json: $.userId
+              as: userId
+      # PATCH username, currentLocation
+      - patch:
+          url: "/users/{{ userId }}"
+          json:
+            currentLocation:
+              coordinates:
+                - "{{long}}"
+                - "{{lat}}"
+            username: "{{username}}"
+          headers:
+            authorization: "{{ jwt }}"
+      - think: 1
+      - post:
+          url: "/feed"
+          capture:
+            - json: $
+              as: feed
+            - json: $.length
+              as: feedLength
+          headers:
+            authorization: "{{ jwt }}"
+      - log: "Received {{feedLength}} elements in feed"
+      - loop:
+        - think: 1
+        - post:
+            url: "/swipes"
+            ifTrue: "$loopElement.type == 'party'"
+            headers:
+              authorization: "{{ jwt }}"
+            json:
+              swipedParty: "{{$loopElement.data._id}}"
+              swipe: false
+        - post:
+            url: "/swipes"
+            ifTrue: "$loopElement.type == 'user'"
+            headers:
+              authorization: "{{ jwt }}"
+            json:
+              swipedUser: "{{$loopElement.data._id}}"
+              swipe: false
+        over: "feed"
+
+######################################################
+
+  - name: "message"
+    flow:
+      # Auth
+      - post:
+          url: "/users/authenticate"
+          json:
+            type: "local"
+            countryCode: "de"
+            channel: "sms"
+            verificationCode: "999999"
+            phoneNumber: "+{{ phone }}"
+            platform: "ios"
+            fcmToken: "0000000000000000000"
+          capture:
+            - json: $.jwt
+              as: jwt
+            - json: $.userId
+              as: userId
+      - think: 1
+      - loop:
+        - think: 1.5
+        - post:
+            url: "/messages"
+            json:
+                message: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+            headers:
+              authorization: "{{ jwt }}"
+        count: 50

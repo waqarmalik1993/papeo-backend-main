@@ -1,0 +1,165 @@
+service: papeo-backend
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+  region: eu-central-1
+  lambdaHashingVersion: "20201221"
+
+      
+
+plugins:
+  - serverless-dotenv-plugin
+  - serverless-offline
+  - serverless-iam-roles-per-function
+  - serverless-plugin-log-retention
+
+package:
+  individually: true
+  excludeDevDependencies: true
+  patterns:
+        - '!node_modules/sharp/**'
+        - '!node_modules/aws-sdk/**'
+        - '!tests/**'
+
+custom:
+  logRetentionInDays: 7
+
+functions:
+  api:
+    handler: app.handler
+    timeout: 60
+    memorySize: 1024
+    environment:
+      LAMBDA: TRUE
+      S3_THUMBNAIL_BUCKET: papeo-uploads-thumbnails-${opt:stage, 'dev'}
+      ASYNC_WORKER_ARN: arn:aws:lambda:${aws:region}:${aws:accountId}:function:papeo-backend-${opt:stage, 'dev'}-asyncWorker
+      # arn:aws:lambda:eu-central-1:920334111461:function:papeo-backend-ticketing-scheduledHandler
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - s3:*
+          - ses:SendEmail
+          - lambda:InvokeFunction
+          - lambda:InvokeAsync
+        # TODO restrict access to uploads bucket
+        Resource: "*"
+    events:
+      - http:
+          path: /
+          method: ANY
+          cors: 
+            origin: '*'
+      - http:
+          path: /{proxy+}
+          method: ANY
+          cors: 
+            origin: '*'
+
+  uploadEventHandler:
+    handler: app.uploadsEventHandler
+    timeout: 20
+    memorySize: 1024
+    events:
+      - s3:
+          bucket: papeo-uploads-${opt:stage, 'dev'}
+          event: s3:ObjectCreated:*
+          existing: true
+    environment:
+      INCLUDE_UPLOADS_ROUTE: TRUE
+      LAMBDA: TRUE
+      S3_BUCKET: papeo-uploads-${opt:stage, 'dev'}
+      S3_THUMBNAIL_BUCKET: papeo-uploads-thumbnails-${opt:stage, 'dev'}
+      REQUIRE_SHARP: TRUE
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - s3:*
+        # TODO restrict access to uploads bucket
+        Resource: "*"
+    layers:
+      - arn:aws:lambda:eu-central-1:920334111461:layer:SharpLayer:2
+
+  scheduledHandler:
+    handler: app.scheduledHandler
+    timeout: 60
+    memorySize: 1024
+    events:
+      - schedule: rate(1 minute)
+    environment:
+      LAMBDA: TRUE
+      S3_BUCKET: papeo-uploads-${opt:stage, 'dev'}
+      S3_THUMBNAIL_BUCKET: papeo-uploads-thumbnails-${opt:stage, 'dev'}
+    iamRoleStatementsInherit: true
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - s3:*
+        # TODO restrict access to uploads bucket
+        Resource: "*"
+
+  scheduledHandlerEvery24h:
+    handler: app.scheduledHandlerEvery24h
+    timeout: 60
+    memorySize: 2048
+    events:
+      - schedule: cron(00 15 * * ? *)
+    environment:
+      LAMBDA: TRUE
+
+  scheduledHandlerEvery1h:
+    handler: app.scheduledHandlerEvery1h
+    timeout: 60
+    memorySize: 2048
+    events:
+      - schedule: rate(1 hour)
+    environment:
+      LAMBDA: TRUE
+
+  asyncWorker:
+    handler: app.asyncWorker
+    timeout: 300
+    memorySize: 2048
+    environment:
+      LAMBDA: TRUE
+    
+
+resources:
+  Resources:
+    UploadBucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: papeo-uploads-${opt:stage, 'dev'}
+        BucketEncryption:
+          ServerSideEncryptionConfiguration: 
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        CorsConfiguration:
+          CorsRules:
+            - AllowedMethods:
+                - GET
+                - HEAD
+                - PUT
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"
+    ThumbnailBucket:
+      Type: 'AWS::S3::Bucket'
+      Properties:
+        BucketName: papeo-uploads-thumbnails-${opt:stage, 'dev'}
+        BucketEncryption:
+          ServerSideEncryptionConfiguration: 
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+        CorsConfiguration:
+          CorsRules:
+            - AllowedMethods:
+                - GET
+                - HEAD
+              AllowedOrigins:
+                - "*"
+              AllowedHeaders:
+                - "*"

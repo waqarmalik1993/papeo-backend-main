@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@types/stripe": "^8.0.417",
+    "axios": "^0.21.1",
+    "firebase-admin": "^9.11.0",
+    "lodash": "^4.17.21",
+    "stripe": "^8.170.0"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "papeo-dev",
+    "staging": "papeo-production"
+  }
+}
